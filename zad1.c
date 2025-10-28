@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <errno.h>
+#include <string.h>
 
 #define NO_BUTTON 20
 
@@ -86,7 +87,14 @@
 
 // TODO: zaimplementowac bufor nadawczy, odbiorczy w tym nadawczy cykliczny, a takze pattern matching na instrukcje odbierane.
 
-#define BUFFOR_SIZE 1000
+#define BUFFOR_SIZE 10000
+#define COMMANDS_SIZE 12
+static char buffor[BUFFOR_SIZE];
+static unsigned ready_commands[BUFFOR_SIZE];
+static unsigned it = 0;
+
+const char* commands[] = {"LR1", "LR0", "LRT", "LG1", "LG0", "LGT", "LB1", "LB0", "LBT", "Lg1", "Lg0", "LgT"};
+
 
 struct cyclic_buffer {
     char* start;
@@ -123,7 +131,7 @@ char* next_in_buffer(cyclic_buffer* c, char* pointer) {
 void push_back(cyclic_buffer* c, const char* s) {
     while(*s != '\0') {
         *(c->head) = *s;
-        *s++;
+        s++;
         char* next = next_in_buffer(c, c->head);
         if(next == c->tail) {
             break;
@@ -135,18 +143,18 @@ void push_back(cyclic_buffer* c, const char* s) {
 char pop_front(cyclic_buffer* c) {
     char rez = *(c->tail);
     c->tail = next_in_buffer(c, c->tail);
-    return r
+    return rez;
 }
 
 bool left_pressed(cyclic_buffer* c, bool was_pressed) {
     if((LEFT_BTN_GPIO->IDR >> LEFT_BTN_PIN) & 1) {
         if(was_pressed) {
-            push_back("LEFT RELEASED");
+            push_back(c, "LEFT RELEASED");
         }
         return false;
     }
     if(!was_pressed) {
-        push_back("LEFT PRESSED\n");
+        push_back(c, "LEFT PRESSED\n");
     }
     return true;
 }
@@ -154,12 +162,12 @@ bool left_pressed(cyclic_buffer* c, bool was_pressed) {
 bool right_pressed(cyclic_buffer* c, bool was_pressed) {
     if((RIGHT_BTN_GPIO->IDR >> RIGHT_BTN_PIN) & 1) {
         if(was_pressed) {
-            push_back("RIGHT RELEASED");
+            push_back(c, "RIGHT RELEASED");
         }
         return false;
     }
     if(!was_pressed) {
-        push_back("RIGHT PRESSED\n");
+        push_back(c, "RIGHT PRESSED\n");
     }
     return true;
 }
@@ -167,12 +175,12 @@ bool right_pressed(cyclic_buffer* c, bool was_pressed) {
 bool up_pressed(cyclic_buffer* c, bool was_pressed) {
     if((UP_BTN_GPIO->IDR >> UP_BTN_PIN) & 1) {
         if(was_pressed) {
-            push_back("UP RELEASED");
+            push_back(c, "UP RELEASED");
         }
         return false;
     }
     if(!was_pressed) {
-        push_back("UP PRESSED\n");
+        push_back(c, "UP PRESSED\n");
     }
     return true;
 }
@@ -180,12 +188,12 @@ bool up_pressed(cyclic_buffer* c, bool was_pressed) {
 bool down_pressed(cyclic_buffer* c, bool was_pressed) {
     if((DOWN_BTN_GPIO->IDR >> DOWN_BTN_PIN) & 1) {
         if(was_pressed) {
-            push_back("DOWN RELEASED");
+            push_back(c, "DOWN RELEASED");
         }
         return false;
     }
     if(!was_pressed) {
-        push_back("DOWN PRESSED\n");
+        push_back(c, "DOWN PRESSED\n");
     }
     return true;
 }
@@ -193,12 +201,12 @@ bool down_pressed(cyclic_buffer* c, bool was_pressed) {
 bool action_pressed(cyclic_buffer* c, bool was_pressed) {
     if((ACTION_BTN_GPIO->IDR >> ACTION_BTN_PIN) & 1) {
         if(was_pressed) {
-            push_back("FIRE RELEASED");
+            push_back(c, "FIRE RELEASED");
         }
         return false;
     }
     if(!was_pressed) {
-        push_back("FIRE PRESSED\n");
+        push_back(c, "FIRE PRESSED\n");
     }
     return true;
 }
@@ -206,25 +214,25 @@ bool action_pressed(cyclic_buffer* c, bool was_pressed) {
 bool user_pressed(cyclic_buffer* c, bool was_pressed) {
     if((USER_BTN_GPIO->IDR >> USER_BTN_PIN) & 1) {
         if(was_pressed) {
-            push_back("USER RELEASED");
+            push_back(c, "USER RELEASED");
         }
         return false;
     }
     if(!was_pressed) {
-        push_back("USER PRESSED\n");
+        push_back(c, "USER PRESSED\n");
     }
     return true;
 }
 
 bool mode_pressed(cyclic_buffer* c, bool was_pressed) {
-    if(!(AT_BTN_GPIO->IDR >> AT_BTN_PIN) & 1) {
+    if(!((AT_BTN_GPIO->IDR >> AT_BTN_PIN) & 1)) {
         if(was_pressed) {
-            push_back("MODE RELEASED");
+            push_back(c, "MODE RELEASED");
         }
         return false;
     }
     if(!was_pressed) {
-        push_back("MODE PRESSED\n");
+        push_back(c, "MODE PRESSED\n");
     }
     return true;
 }
@@ -247,15 +255,58 @@ void handle_buttons(cyclic_buffer* c, unsigned* active_button) {
         *active_button = check_buttons(c, false);
     }
     else {
+        bool same_pressed = true;
         if(*active_button == LEFT_BTN_PIN) {
-            if(left_pressed(c, true))
-                return;
-            else
-                *active_button = NO_BUTTON;
+            same_pressed = left_pressed(c, true);
+        }
+        if(*active_button == RIGHT_BTN_PIN) {
+            same_pressed = right_pressed(c, true);
+        }
+        if(*active_button == UP_BTN_PIN) {
+            same_pressed = up_pressed(c, true);
+        }
+        if(*active_button == DOWN_BTN_PIN) {
+            same_pressed = down_pressed(c, true);
+        }
+        if(*active_button == AT_BTN_PIN) {
+            same_pressed = mode_pressed(c, true);
+        }
+        if(*active_button == USER_BTN_PIN) {
+            same_pressed = user_pressed(c, true);
+        }
+        if(*active_button == ACTION_BTN_PIN) {
+            same_pressed = action_pressed(c, true);
+        }
+        if(!same_pressed) {
+            *active_button = NO_BUTTON;
         }
     }
 }
 
+
+void check_led_command() {
+    for(unsigned i = 0; i < COMMANDS_SIZE; i++) {
+        if(strstr(buffor, commands[i])) {
+            delay_command(i);
+            it = 0;
+            buffor[i] = '\0';
+            return;
+        }
+    }
+}
+
+void buffor_add(char c) {
+    if(c == '\n') {
+        check_led_command();
+    }
+    else {
+        if(it < BUFFOR_SIZE - 1) {
+            buffor[it] = c;
+            buffor[it + 1] = '\0';
+            it ++;
+        }
+    }
+}
 
 void send_byte(char x) {
     
@@ -265,14 +316,15 @@ void send_byte(char x) {
     
 }
 
-bool handle_input(unsigned it) {
+bool handle_input(unsigned* end) {
     if(USART2->SR & USART_SR_RXNE) {
-        buffor[it] = USART2->DR;
-        it++;
+        char c = USART2->DR;
+        buffor_add(c);
         return true;
     }
     return false;
 }
+
 
 int main() {
 
@@ -334,15 +386,16 @@ int main() {
 
 
     
-    unsigned it = 0;
-    unsigned active_button = 20;
-    bool is_active = false;
+    unsigned active_button = NO_BUTTON;
+
 
     for(;;) {
-        //if(handle_input(it)) {
-        //    continue;
-        //}
-        
+        if(handle_input(&last_command)) {
+            continue;
+        }
+
+
+
         handle_buttons(&active_button);
 
     }
