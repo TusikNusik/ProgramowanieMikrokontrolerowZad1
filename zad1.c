@@ -9,10 +9,6 @@
 
 #define NO_BUTTON 20
 
-#define STDIN_FILENO 0
-#define STDOUT_FILENO 1
-#define STDERR_FILENO 2
-
 // ------------------ PRZYCISKI ------------------
 // ------------------ AKTYWNY 0 ------------------
 
@@ -80,18 +76,15 @@
 #define BAUD 9600U
 
 // ------------------ USART ------------------
-// Nie uzywac funkcji z wykladu bo sa blokujace, napisac wlasna implementacje ze sladow 18, 19.
 
-// Aby wypisywac na wyjscie musze orzystac z programu posredniczacego minicom, wywolanie minicom i trzeba go skonfigurowac w pliku
-// ktory jest w katalogu domowym.
-
-// TODO: zle dziala bufor z ready commands musza byc dwie zmienne typu next_command i end_of_commands
 
 #define BUFFOR_SIZE 10000
 #define COMMANDS_SIZE 12
+
 static char buffor[BUFFOR_SIZE];
 static unsigned ready_commands[BUFFOR_SIZE];
 static unsigned it_commands = 0;
+static unsigned it_end = 0;
 static unsigned it = 0;
 
 const char* commands[] = {"LR1", "LR0", "LRT", "LG1", "LG0", "LGT", "LB1", "LB0", "LBT", "Lg1", "Lg0", "LgT"};
@@ -151,12 +144,12 @@ char pop_front(cyclic_buffer* c) {
 bool left_pressed(cyclic_buffer* c, bool was_pressed) {
     if((LEFT_BTN_GPIO->IDR >> LEFT_BTN_PIN) & 1) {
         if(was_pressed) {
-            push_back(c, "LEFT RELEASED");
+            push_back(c, "LEFT RELEASED\r\n");
         }
         return false;
     }
     if(!was_pressed) {
-        push_back(c, "LEFT PRESSED\n");
+        push_back(c, "LEFT PRESSED\r\n");
     }
     return true;
 }
@@ -164,12 +157,12 @@ bool left_pressed(cyclic_buffer* c, bool was_pressed) {
 bool right_pressed(cyclic_buffer* c, bool was_pressed) {
     if((RIGHT_BTN_GPIO->IDR >> RIGHT_BTN_PIN) & 1) {
         if(was_pressed) {
-            push_back(c, "RIGHT RELEASED");
+            push_back(c, "RIGHT RELEASED\r\n");
         }
         return false;
     }
     if(!was_pressed) {
-        push_back(c, "RIGHT PRESSED\n");
+        push_back(c, "RIGHT PRESSED\r\n");
     }
     return true;
 }
@@ -177,12 +170,12 @@ bool right_pressed(cyclic_buffer* c, bool was_pressed) {
 bool up_pressed(cyclic_buffer* c, bool was_pressed) {
     if((UP_BTN_GPIO->IDR >> UP_BTN_PIN) & 1) {
         if(was_pressed) {
-            push_back(c, "UP RELEASED");
+            push_back(c, "UP RELEASED\r\n");
         }
         return false;
     }
     if(!was_pressed) {
-        push_back(c, "UP PRESSED\n");
+        push_back(c, "UP PRESSED\r\n");
     }
     return true;
 }
@@ -190,12 +183,12 @@ bool up_pressed(cyclic_buffer* c, bool was_pressed) {
 bool down_pressed(cyclic_buffer* c, bool was_pressed) {
     if((DOWN_BTN_GPIO->IDR >> DOWN_BTN_PIN) & 1) {
         if(was_pressed) {
-            push_back(c, "DOWN RELEASED");
+            push_back(c, "DOWN RELEASED\r\n");
         }
         return false;
     }
     if(!was_pressed) {
-        push_back(c, "DOWN PRESSED\n");
+        push_back(c, "DOWN PRESSED\r\n");
     }
     return true;
 }
@@ -203,12 +196,12 @@ bool down_pressed(cyclic_buffer* c, bool was_pressed) {
 bool action_pressed(cyclic_buffer* c, bool was_pressed) {
     if((ACTION_BTN_GPIO->IDR >> ACTION_BTN_PIN) & 1) {
         if(was_pressed) {
-            push_back(c, "FIRE RELEASED");
+            push_back(c, "FIRE RELEASED\r\n");
         }
         return false;
     }
     if(!was_pressed) {
-        push_back(c, "FIRE PRESSED\n");
+        push_back(c, "FIRE PRESSED\r\n");
     }
     return true;
 }
@@ -216,12 +209,12 @@ bool action_pressed(cyclic_buffer* c, bool was_pressed) {
 bool user_pressed(cyclic_buffer* c, bool was_pressed) {
     if((USER_BTN_GPIO->IDR >> USER_BTN_PIN) & 1) {
         if(was_pressed) {
-            push_back(c, "USER RELEASED");
+            push_back(c, "USER RELEASED\r\n");
         }
         return false;
     }
     if(!was_pressed) {
-        push_back(c, "USER PRESSED\n");
+        push_back(c, "USER PRESSED\r\n");
     }
     return true;
 }
@@ -229,12 +222,12 @@ bool user_pressed(cyclic_buffer* c, bool was_pressed) {
 bool mode_pressed(cyclic_buffer* c, bool was_pressed) {
     if(!((AT_BTN_GPIO->IDR >> AT_BTN_PIN) & 1)) {
         if(was_pressed) {
-            push_back(c, "MODE RELEASED");
+            push_back(c, "MODE RELEASED\r\n");
         }
         return false;
     }
     if(!was_pressed) {
-        push_back(c, "MODE PRESSED\n");
+        push_back(c, "MODE PRESSED\r\n");
     }
     return true;
 }
@@ -286,20 +279,46 @@ void handle_buttons(cyclic_buffer* c, unsigned* active_button) {
 } 
 
 bool led_command_ready() {
-    if(ready_commands[it_commands + 1] != 0) {
+    if(ready_commands[it_commands] != 0) {
         return true;
     }
     return false;
 }
 
-void led_command_execute() {
-    if(ready_commands[it_commands] == 1)            //
-    ...
 
+void led_command_execute() {
+    if(ready_commands[it_commands] == 1)    RedLEDon(); 
+    if(ready_commands[it_commands] == 2)    RedLEDoff(); 
+    if(ready_commands[it_commands] == 4)    GreenLEDon(); 
+    if(ready_commands[it_commands] == 5)    GreenLEDoff();
+    if(ready_commands[it_commands] == 7)    BlueLEDon();
+    if(ready_commands[it_commands] == 8)    BlueLEDoff();
+    if(ready_commands[it_commands] == 10)   Green2LEDon();
+    if(ready_commands[it_commands] == 11)   Green2LEDoff();
+    
+    if(ready_commands[it_commands] == 3) {
+        if(RED_LED_GPIO->IDR & (1 << (RED_LED_PIN)))    RedLEDon();
+        else    RedLEDoff();
+    }
+    if(ready_commands[it_commands] == 6) {
+        if(GREEN_LED_GPIO->IDR & (1 << (GREEN_LED_PIN)))    GreenLEDon();
+        else    GreenLEDoff();
+    }
+    if(ready_commands[it_commands] == 9) {
+        if(BLUE_LED_GPIO->IDR & (1 << (BLUE_LED_PIN)))    BlueLEDon();
+        else    BlueLEDoff();
+    }
+    if(ready_commands[it_commands] == 12) {
+        if(GREEN2_LED_GPIO->IDR & (1 << (GREEN2_LED_PIN)))    Green2LEDoff();
+        else    Green2LEDon();
+    }
+
+    it_commands++;
 }
 
 void delay_command(unsigned x) {
-
+    ready_commands[it_end] = x;
+    it_end++;
 }
 
 void led_command_check() {
@@ -314,7 +333,7 @@ void led_command_check() {
 }
 
 void buffor_add(char c) {
-    if(c == '\n') {
+    if(c == '\n' || c =='\r' || c == '\0') {
         led_command_check();
     }
     else {
@@ -323,15 +342,17 @@ void buffor_add(char c) {
             buffor[it + 1] = '\0';
             it ++;
         }
+        else {
+            it = 0;
+            buffor[0] = '\0';
+        }
     }
 }
 
 void send_byte(cyclic_buffer* c) {
-    
     if(USART2->SR & USART_SR_TXE) {
         USART2->DR = pop_front(c);
     }
-    
 }
 
 bool handle_input() {
@@ -345,9 +366,9 @@ bool handle_input() {
 
 
 int main() {
-
+    
     RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN |
-    RCC_AHB1ENR_GPIOBEN;
+    RCC_AHB1ENR_GPIOBEN | RCC_AHB1ENR_GPIOCEN;
 
     RCC->APB1ENR |= RCC_APB1ENR_USART2EN;
 
@@ -406,10 +427,11 @@ int main() {
     memset(ready_commands, 0, sizeof(ready_commands));
     unsigned active_button = NO_BUTTON;
     cyclic_buffer c;
+
     init(&c);
 
     for(;;) {
-        if(handle_input()) {
+        if(handle_input(&c)) {
             continue;
         }
 
@@ -417,13 +439,12 @@ int main() {
             led_command_execute();
             continue;
         }
-
-        handle_buttons(c, &active_button);
+        
+        handle_buttons(&c, &active_button);
 
         if(!is_empty(&c)) {
             send_byte(&c);
         }
-
     }
 
 
