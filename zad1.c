@@ -85,12 +85,13 @@
 // Aby wypisywac na wyjscie musze orzystac z programu posredniczacego minicom, wywolanie minicom i trzeba go skonfigurowac w pliku
 // ktory jest w katalogu domowym.
 
-// TODO: zaimplementowac bufor nadawczy, odbiorczy w tym nadawczy cykliczny, a takze pattern matching na instrukcje odbierane.
+// TODO: zle dziala bufor z ready commands musza byc dwie zmienne typu next_command i end_of_commands
 
 #define BUFFOR_SIZE 10000
 #define COMMANDS_SIZE 12
 static char buffor[BUFFOR_SIZE];
 static unsigned ready_commands[BUFFOR_SIZE];
+static unsigned it_commands = 0;
 static unsigned it = 0;
 
 const char* commands[] = {"LR1", "LR0", "LRT", "LG1", "LG0", "LGT", "LB1", "LB0", "LBT", "Lg1", "Lg0", "LgT"};
@@ -107,8 +108,9 @@ struct cyclic_buffer {
 typedef struct cyclic_buffer cyclic_buffer;
 
 void init(cyclic_buffer* c) {
+    static char storage[BUFFOR_SIZE];  
     c->size = BUFFOR_SIZE;
-    c->start = (char*)malloc(sizeof(char) * BUFFOR_SIZE);
+    c->start = storage;
     c->end = c->start + c->size;
     c->head = c->start;
     c->tail = c->start;
@@ -281,15 +283,31 @@ void handle_buttons(cyclic_buffer* c, unsigned* active_button) {
             *active_button = NO_BUTTON;
         }
     }
+} 
+
+bool led_command_ready() {
+    if(ready_commands[it_commands + 1] != 0) {
+        return true;
+    }
+    return false;
 }
 
+void led_command_execute() {
+    if(ready_commands[it_commands] == 1)            //
+    ...
 
-void check_led_command() {
+}
+
+void delay_command(unsigned x) {
+
+}
+
+void led_command_check() {
     for(unsigned i = 0; i < COMMANDS_SIZE; i++) {
         if(strstr(buffor, commands[i])) {
-            delay_command(i);
+            delay_command(i + 1);
             it = 0;
-            buffor[i] = '\0';
+            buffor[0] = '\0';
             return;
         }
     }
@@ -297,7 +315,7 @@ void check_led_command() {
 
 void buffor_add(char c) {
     if(c == '\n') {
-        check_led_command();
+        led_command_check();
     }
     else {
         if(it < BUFFOR_SIZE - 1) {
@@ -308,15 +326,15 @@ void buffor_add(char c) {
     }
 }
 
-void send_byte(char x) {
+void send_byte(cyclic_buffer* c) {
     
-    while(!(USART2->SR & USART_SR_TXE));
-    USART2->DR = x;
-    
+    if(USART2->SR & USART_SR_TXE) {
+        USART2->DR = pop_front(c);
+    }
     
 }
 
-bool handle_input(unsigned* end) {
+bool handle_input() {
     if(USART2->SR & USART_SR_RXNE) {
         char c = USART2->DR;
         buffor_add(c);
@@ -385,18 +403,26 @@ int main() {
         GPIO_PuPd_NOPULL);
 
 
-    
+    memset(ready_commands, 0, sizeof(ready_commands));
     unsigned active_button = NO_BUTTON;
-
+    cyclic_buffer c;
+    init(&c);
 
     for(;;) {
-        if(handle_input(&last_command)) {
+        if(handle_input()) {
             continue;
         }
 
+        if(led_command_ready()) {
+            led_command_execute();
+            continue;
+        }
 
+        handle_buttons(c, &active_button);
 
-        handle_buttons(&active_button);
+        if(!is_empty(&c)) {
+            send_byte(&c);
+        }
 
     }
 
