@@ -7,8 +7,6 @@
 #include <errno.h>
 #include <string.h>
 
-#define NO_BUTTON 20
-
 // ------------------ PRZYCISKI ------------------
 // ------------------ AKTYWNY 0 ------------------
 
@@ -233,50 +231,15 @@ bool mode_pressed(cyclic_buffer* c, bool was_pressed) {
 }
 
 
-unsigned check_buttons(cyclic_buffer* c, bool x) {
-    if(left_pressed(c, x)) return LEFT_BTN_PIN;
-    if(right_pressed(c, x)) return RIGHT_BTN_PIN;
-    if(up_pressed(c, x)) return UP_BTN_PIN;
-    if(down_pressed(c, x)) return DOWN_BTN_PIN;
-    if(mode_pressed(c, x)) return AT_BTN_PIN;
-    if(user_pressed(c, x)) return USER_BTN_PIN;
-    if(action_pressed(c, x)) return ACTION_BTN_PIN;
-
-    return NO_BUTTON;
+void check_buttons(cyclic_buffer* c, bool* b_pressed) {
+    if(left_pressed(c, b_pressed[LEFT_BTN_PIN])) { b_pressed[LEFT_BTN_PIN] = true; } else { b_pressed[LEFT_BTN_PIN] = false; }
+    if(right_pressed(c, b_pressed[RIGHT_BTN_PIN])) { b_pressed[RIGHT_BTN_PIN] = true; } else { b_pressed[RIGHT_BTN_PIN] = false; }
+    if(up_pressed(c, b_pressed[UP_BTN_PIN])) { b_pressed[UP_BTN_PIN] = true; } else { b_pressed[UP_BTN_PIN] = false; }
+    if(down_pressed(c, b_pressed[DOWN_BTN_PIN])) { b_pressed[DOWN_BTN_PIN] = true; } else { b_pressed[DOWN_BTN_PIN] = false; }
+    if(mode_pressed(c, b_pressed[AT_BTN_PIN])) { b_pressed[AT_BTN_PIN] = true; } else { b_pressed[AT_BTN_PIN] = false; }
+    if(user_pressed(c, b_pressed[USER_BTN_PIN])) { b_pressed[USER_BTN_PIN] = true; } else { b_pressed[USER_BTN_PIN] = false; }
+    if(action_pressed(c, b_pressed[ACTION_BTN_PIN])) { b_pressed[ACTION_BTN_PIN] = true; } else { b_pressed[ACTION_BTN_PIN] = false; }
 }
-
-void handle_buttons(cyclic_buffer* c, unsigned* active_button) {
-    if(*active_button == NO_BUTTON) {
-        *active_button = check_buttons(c, false);
-    }
-    else {
-        bool same_pressed = true;
-        if(*active_button == LEFT_BTN_PIN) {
-            same_pressed = left_pressed(c, true);
-        }
-        if(*active_button == RIGHT_BTN_PIN) {
-            same_pressed = right_pressed(c, true);
-        }
-        if(*active_button == UP_BTN_PIN) {
-            same_pressed = up_pressed(c, true);
-        }
-        if(*active_button == DOWN_BTN_PIN) {
-            same_pressed = down_pressed(c, true);
-        }
-        if(*active_button == AT_BTN_PIN) {
-            same_pressed = mode_pressed(c, true);
-        }
-        if(*active_button == USER_BTN_PIN) {
-            same_pressed = user_pressed(c, true);
-        }
-        if(*active_button == ACTION_BTN_PIN) {
-            same_pressed = action_pressed(c, true);
-        }
-        if(!same_pressed) {
-            *active_button = NO_BUTTON;
-        }
-    }
-} 
 
 bool led_command_ready() {
     if(ready_commands[it_commands] != 0) {
@@ -425,8 +388,10 @@ int main() {
 
 
     memset(ready_commands, 0, sizeof(ready_commands));
-    unsigned active_button = NO_BUTTON;
     cyclic_buffer c;
+    bool buttons_pressed[20];
+    memset(buttons_pressed, false, sizeof(buttons_pressed));
+
 
     init(&c);
 
@@ -440,7 +405,7 @@ int main() {
             continue;
         }
         
-        handle_buttons(&c, &active_button);
+        check_buttons(&c, buttons_pressed);
 
         if(!is_empty(&c)) {
             send_byte(&c);
